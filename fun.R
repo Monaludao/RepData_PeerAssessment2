@@ -3,7 +3,8 @@ fun <- function(){
     library(plyr)
     Sys.setlocale("LC_ALL", "C")
     
-    stormdata<-read.csv(bzfile("repdata-data-StormData.csv.bz2"), sep=",", stringsAsFactors=FALSE)
+    stormdata <- read.csv(bzfile("repdata-data-StormData.csv.bz2"), sep=",", stringsAsFactors=FALSE)
+    stormdata <- stormdata[,c("EVTYPE","FATALITIES","INJURIES","PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP","REFNUM")]
     
     ## clean EVTYPE        
     stormdata$cate <- toupper(stormdata$EVTYPE)
@@ -60,14 +61,31 @@ fun <- function(){
     events
     
     #ASSESSMENT FOR Q1    
-    stormdata$H_INDEX <- stormdata$FATALITIES+0.5*stormdata$INJURIES
+    stormdata$Harm_INDEX <- stormdata$FATALITIES+0.5*stormdata$INJURIES
         
-    melt.data<-melt(stormdata, id=c("REFNUM", "cate"), measure.vars=c("FATALITIES", "INJURIES", "H_INDEX"))
-    melt.data$value<-as.integer(melt.data$value)
+    #ASSESSMENT FOR Q2
+    ##DMG_value <- stormdata[,c("PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP")]
+    ##PROPDMG_value <- c(NA)
+    ##CROPDMG_value <- c(NA)
+    stormdata$prop_exp <- c(NA)
+    stormdata$crop_exp <- c(NA)
+    
+    stormdata$prop_exp[grepl("K", toupper(stormdata$PROPDMGEXP))] <- 1000
+    stormdata$prop_exp[grepl("M", toupper(stormdata$PROPDMGEXP))] <- 1000000
+    stormdata$prop_exp[grepl("B", toupper(stormdata$PROPDMGEXP))] <- 1000000000
+    stormdata$prop_exp[is.na(stormdata$prop_exp)] <- 0
+    
+    stormdata$crop_exp[grepl("K", toupper(stormdata$CROPDMGEXP))] <- 1000
+    stormdata$crop_exp[grepl("M", toupper(stormdata$CROPDMGEXP))] <- 1000000
+    stormdata$crop_exp[grepl("B", toupper(stormdata$CROPDMGEXP))] <- 1000000000
+    stormdata$crop_exp[is.na(stormdata$crop_exp)] <- 0
+    
+    stormdata$DMG_INDEX<-((stormdata$PROPDMG*stormdata$prop_exp)+(stormdata$CROPDMG*stormdata$crop_exp))/1000000000
+   
+    #OUTPUT
+    melt.data<-melt(stormdata, id=c("REFNUM", "cate"), measure.vars=c("FATALITIES", "INJURIES", "Harm_INDEX","DMG_INDEX"))
     data.fatal<-dcast(melt.data, cate ~ variable, sum)
     
-    head(arrange(data.fatal, H_INDEX, decreasing=TRUE),20)
-    
-    #ASSESSMENT FOR Q2
-    if (stormdata$PROPDMDEXP == K)
+    head(arrange(data.fatal, Harm_INDEX, decreasing=TRUE),20)
+    head(arrange(data.fatal, DMG_INDEX, decreasing=TRUE),20)
 }
