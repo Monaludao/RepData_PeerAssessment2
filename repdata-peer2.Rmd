@@ -1,20 +1,147 @@
 ---
-title: "PeerAssessment 2"
-output: pdf_document
+title: "Preliminary Assessment of Strom Event Impacts"
+output: html_document
 ---
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+##1.Synopsis
+This report documents a quick analysis on the NOAA Storm Data by assessing the harmfulness of population health and economic loss. During the assessment, the NOAA dataset was subseted and cleaned for data processing. Harm_INDEX and DMG_INDEX were created for the assessment. The result indicated that Tornado events caused the most population health impact and the flood events caused the most economic losses.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+##2.Data Processing
+###2.1 Data Preparation
+The NOAA Storm Database was used. The raw data contains 37 variables including STATE, EVTYPE, FATALITIES, et cetera. However, only a few were adpted for this analysis, therefore a subset was made.
+```{r echo=TRUE, cache = TRUE}
+Sys.setlocale("LC_ALL", "C")
+    
+stormdata <- read.csv(bzfile("repdata-data-StormData.csv.bz2"), sep=",", stringsAsFactors=FALSE)
+str(stormdata)
 
-```{r}
-summary(cars)
+stormdata <- stormdata[,c("EVTYPE","FATALITIES","INJURIES","PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP","REFNUM")]
 ```
 
-You can also embed plots, for example:
+###2.2 Data Cleaning
+It is noteworthy that the "EVTYPE" column which is indicating the type of events contains a lot of redundancy. For example, there were 44 unique EVTYPE values include string "HAIL", but most of them were refer to the very same event- HAIL. Therefore the EVTYPE must be cleaned to perform a better analysis.
 
-```{r, echo=FALSE}
-plot(cars)
+```{r echo=TRUE, cache = TRUE}
+unique(stormdata$EVTYPE[grepl("HAIL", stormdata$EVTYPE)])
+
+stormdata$cate <- toupper(stormdata$EVTYPE)
+
+stormdata$cate[grepl("^( *)", stormdata$cate)] <- (gsub("^( *)", "", stormdata$cate[grepl("^( *)", stormdata$cate)]))
+stormdata$cate[grepl(" +", stormdata$cate)] <- (gsub(" +", " ", stormdata$cate[grepl(" +", stormdata$cate)]))
+stormdata$cate[grepl("S+\\b", stormdata$cate)] <- gsub("S+\\b", "", stormdata$cate[grepl("S+\\b", stormdata$cate)])
+stormdata$cate[grepl(" AND$", stormdata$cate)] <- (gsub(" AND$", "", stormdata$cate[grepl(" AND$", stormdata$cate)]))
+        
+stormdata$cate[grepl("^(SUMMARY|Summary)", stormdata$cate)] <- "SUMMARY"
+    
+stormdata$cate[grepl("(SMALL|DEEP|NON SEVERE|LATE SEASON) HAIL", stormdata$cate)] <- "HAIL"
+stormdata$cate[grepl("HAIL (DAMAGE|ALOFT|[0-9])", stormdata$cate)] <- "HAIL"
+    
+stormdata$cate[grepl("^TORNADO(E)?( DEBRI)?( F[0-9])?$", stormdata$cate)] <- "TORNADO"
+            
+stormdata$cate[grepl("TSTM", stormdata$cate)] <- (gsub("TSTM", "THUNDERSTORM", stormdata$cate[grepl("TSTM", stormdata$cate)]))
+stormdata$cate[grepl("^THUNDERSTORM(W)? (WIND)?(S)? ?\\(?G?[0-9]", stormdata$cate)] <- "THUNDERSTORM WIND"
+stormdata$cate[grepl("^(SEVERE |GUSTY )?THUNDERSTORM(W)? ?(W)? ?(I)?(N)?(D)? ?(.)?(G)?( DAMAGE| TO| LE CEN)?$", stormdata$cate)] <- "THUNDERSTORM WIND"
+stormdata$cate[grepl("^THUNDERSTORM WIND(/)? ?(TREE)?$", stormdata$cate)] <- "THUNDERSTORM WIND"
+    
+stormdata$cate[grepl("^HIGH WIND [0-9]", stormdata$cate)] <- "HIGH WIND"
+stormdata$cate[grepl("^HIGH WIND(/)?$", stormdata$cate)] <- "HIGH WIND"
+stormdata$cate[grepl("^HIGH WIND \\(.*\\)", stormdata$cate)] <- "HIGH WIND"
+    
+stormdata$cate[grepl("FLOODING|FLOODIN", stormdata$cate)] <- (gsub("FLOODING|FLOODIN", "FLOOD", stormdata$cate[grepl("FLOODING|FLOODIN", stormdata$cate)]))
+stormdata$cate[grepl("^(RURAL|MINOR|MAJOR|SNOWMELT|HIGHWAY|STREET|RIVER|LOCAL) FLOOD$", stormdata$cate)] <- "FLOOD"
+stormdata$cate[grepl("^(URBAN|SMALL STREAM|RIVER)?.?( AND )?(SMALL)? ?(URBAN|STREAM|STREET)? ?FLOOD$", stormdata$cate)] <- "FLOOD"
+stormdata$cate[grepl("^FLOOD( WATCH)?/(RIVER FLOOD)?$", stormdata$cate)] <- "FLOOD"
+    
+stormdata$cate[grepl("^LAKE FLOOD$", stormdata$cate)] <- "LAKESHORE FLOOD"
+    
+stormdata$cate[grepl("^COASTAL( *)FLOOD?$", stormdata$cate)] <- "COASTAL FLOOD"
+stormdata$cate[grepl("^BEACH FLOOD?$", stormdata$cate)] <- "COASTAL FLOOD"
+    
+stormdata$cate[grepl("^(LOCAL )?FLASH FLOOD(/)( STREET)?$", stormdata$cate)] <- "FLASH FLOOD"
+stormdata$cate[grepl("^FLOOD( |/)FLASH$", stormdata$cate)] <- "FLASH FLOOD"
+stormdata$cate[grepl("^ICE JAM FLOOD (\\(MINOR)?$", stormdata$cate)] <- "FLASH FLOOD"
+stormdata$cate[grepl("^FLASH FLOOD FROM ICE JAM$", stormdata$cate)] <- "FLASH FLOOD"
+    
+stormdata$cate[grepl("^LIGHT(N)?(ING)?(\\.)? ?(DAMAGE|INJURY|FIRE)?$", stormdata$cate)] <- "LIGHTNING"
+    
+stormdata$cate[grepl("HURRICANE|TYPHOON", stormdata$cate)] <- "HURRICANE(TYPHOON)"
+    
+stormdata$cate[grepl("^LANDSLIDE|LANDSLUMP", stormdata$cate)] <- "DEBRIS FLOW"
+    
+stormdata$cate[grepl("EXTREME COLD", stormdata$cate)] <- "EXTREME COLD/WIND CHILL"
+    
+stormdata$cate[grepl("^(PATCHY )?(DENSE )?FOG$", stormdata$cate)] <- "DENSE FOG"
+    
+stormdata$cate[grepl("^ICE FOG$", stormdata$cate)] <- "FREEZING FOG"
+
+n.EVTYPE<-length(unique(stormdata$EVTYPE))
+n.cate<-length(unique(stormdata$cate))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+After the clean up, the cate column contained `r n.cate` unique values (comparing to `r n.EVTYPE` unique values of EVTYPE column), which might be enough for this preliminary analysis.
+
+###Impact Indexing
+In order to assess the event impacts in terms of population health and economic loss, two indices were create - Harm_INDEX and DMG_INDEX. The former assessed the impacts on population health. It weighted the FATALITIES as 1 and INJURIES as 0.5 and added up them as a quantized harmfulness.The DMG_INDEX assessed the economic loss by adding up property related damages and crop related damages in billions.
+
+```{r echo=TRUE}
+library(reshape2)
+stormdata$Harm_INDEX <- stormdata$FATALITIES+0.5*stormdata$INJURIES
+
+stormdata$prop_exp <- c(NA)
+stormdata$crop_exp <- c(NA)
+
+stormdata$prop_exp[grepl("K", toupper(stormdata$PROPDMGEXP))] <- 1000
+stormdata$prop_exp[grepl("M", toupper(stormdata$PROPDMGEXP))] <- 1000000
+stormdata$prop_exp[grepl("B", toupper(stormdata$PROPDMGEXP))] <- 1000000000
+stormdata$prop_exp[is.na(stormdata$prop_exp)] <- 0
+    
+stormdata$crop_exp[grepl("K", toupper(stormdata$CROPDMGEXP))] <- 1000
+stormdata$crop_exp[grepl("M", toupper(stormdata$CROPDMGEXP))] <- 1000000
+stormdata$crop_exp[grepl("B", toupper(stormdata$CROPDMGEXP))] <- 1000000000
+stormdata$crop_exp[is.na(stormdata$crop_exp)] <- 0
+    
+stormdata$DMG_INDEX<-((stormdata$PROPDMG*stormdata$prop_exp)+(stormdata$CROPDMG*stormdata$crop_exp))/1000000000
+
+melt.data<-melt(stormdata, id=c("REFNUM", "cate"), measure.vars=c("FATALITIES", "INJURIES", "Harm_INDEX","DMG_INDEX"))
+data.fatal<-dcast(melt.data, cate ~ variable, sum)
+```
+
+##Results
+#### Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+```{r echo=TRUE}
+m.harm.EV<-data.fatal[data.fatal$Harm_INDEX==max(data.fatal$Harm_INDEX),]
+```
+The most harmful event was `r m.harm.EV[,"cate"]` which indexed at 'r m.harm.EV[,"Harm_INDEX"]' combined with fatalities and injuries. As indicated in the follow figure, the event of `r m.harm.EV[,"cate"]` caused almost ten times more than the others in terms of Harm_INDEX.
+
+```{r echo=TRUE}
+library(plyr)
+library(ggplot2)
+
+top10.harm.EV<-head(arrange(data.fatal, Harm_INDEX, decreasing=TRUE),10)
+
+p<-ggplot(top10.harm.EV,aes(x=cate,y=Harm_INDEX,fill=cate))
+p<-p+labs(x="Event Types") + theme(legend.position="none")
+p<-p+theme(axis.text.x=element_text(angle=45, hjust = 1))
+p<-p+geom_bar(stat="identity")
+
+print(p)
+top10.harm.EV
+```
+
+#### Across the United States, which types of events have the greatest economic consequences?
+```{r echo=TRUE}
+m.dmg.EV<-data.fatal[data.fatal$DMG_INDEX==max(data.fatal$DMG_INDEX),]
+```
+The event of `r m.dmg.EV[,"cate"]` which caused 'r m.dmg.EV[,"DMG_INDEX"]' billion dollar loss had the greatest economic consequences.
+
+```{r echo=TRUE}
+top10.dmg.EV<-head(arrange(data.fatal, DMG_INDEX, decreasing=TRUE),10)
+
+p<-ggplot(top10.dmg.EV,aes(x=cate,y=DMG_INDEX,fill=cate))
+p<-p+labs(x="Event Types") + theme(legend.position="none")
+p<-p+theme(axis.text.x=element_text(angle=45, hjust = 1))
+p<-p+geom_bar(stat="identity")
+
+print(p)
+top10.dmg.EV
+```
